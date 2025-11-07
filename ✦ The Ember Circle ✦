@@ -1,0 +1,102 @@
+// index.js
+const { Client, GatewayIntentBits, PermissionsBitField } = require('discord.js');
+const client = new Client({
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+});
+
+const TOKEN = process.env.DISCORD_TOKEN;
+const MY_ID = '1150291790419726346'; // ID حسابك
+
+// قاعدة بيانات مؤقتة للعملات
+let coins = {}; // هيخزن العملات حسب userId
+
+client.once('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+});
+
+client.on('messageCreate', async message => {
+    if (message.author.bot) return;
+
+    const args = message.content.split(' ');
+    const command = args[0];
+
+    // ---- أوامر الإدارة ----
+    if (command === '!مسح') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) 
+            return message.reply('أنت مش عندك صلاحية.');
+        let deleteCount = parseInt(args[1], 10);
+        if (!deleteCount || deleteCount < 1 || deleteCount > 100) 
+            return message.reply('اكتب رقم بين 1 و 100.');
+        await message.channel.bulkDelete(deleteCount, true);
+        message.channel.send(`${deleteCount} رسالة تم مسحهم ✅`).then(msg => setTimeout(() => msg.delete(), 5000));
+    }
+
+    if (command === '!بان') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) 
+            return message.reply('أنت مش عندك صلاحية.');
+        const member = message.mentions.members.first();
+        if (!member) return message.reply('منشن العضو اللي عايز تعمله بان.');
+        const reason = args.slice(2).join(' ') || 'لا يوجد سبب';
+        await member.ban({ reason });
+        message.channel.send(`${member.user.tag} تم عمله بان ✅`);
+    }
+
+    if (command === '!unban') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.BanMembers)) 
+            return message.reply('أنت مش عندك صلاحية.');
+        const userId = args[1];
+        if (!userId) return message.reply('اكتب ID العضو.');
+        try {
+            await message.guild.members.unban(userId);
+            message.channel.send(`تم رفع البان عن العضو ✅`);
+        } catch {
+            message.reply('مش قادر ألاقي العضو.');
+        }
+    }
+
+    if (command === '!mute') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) 
+            return message.reply('أنت مش عندك صلاحية.');
+        const member = message.mentions.members.first();
+        if (!member) return message.reply('منشن العضو.');
+        let duration = args[2] || '10m'; // 10 دقائق افتراضي
+        let time = parseInt(duration);
+        member.timeout(time * 60000).catch(() => message.reply('مش قادر أعمله ميوت.'));
+        message.channel.send(`${member.user.tag} تم عمله ميوت ✅`);
+    }
+
+    if (command === '!unmute') {
+        if (!message.member.permissions.has(PermissionsBitField.Flags.ModerateMembers)) 
+            return message.reply('أنت مش عندك صلاحية.');
+        const member = message.mentions.members.first();
+        if (!member) return message.reply('منشن العضو.');
+        member.timeout(null).catch(() => message.reply('مش قادر أرفع الميوت.'));
+        message.channel.send(`${member.user.tag} تم رفع الميوت ✅`);
+    }
+
+    // ---- ألعاب بسيطة ----
+    if (command === '!coinflip') {
+        const sides = ['وجه', 'كتابة'];
+        const result = sides[Math.floor(Math.random() * sides.length)];
+        message.reply(`النتيجة: ${result}`);
+    }
+
+    if (command === '!roll') {
+        const result = Math.floor(Math.random() * 6) + 1;
+        message.reply(`طلعتلك رقم: ${result}`);
+    }
+
+    // ---- إضافة عملات لك فقط ----
+    if (command === '!addcoins' && message.author.id === MY_ID) {
+        coins[message.author.id] = (coins[message.author.id] || 0) + 10000000;
+        message.reply('تم إضافة 10m عملة ✅');
+    }
+
+    // ---- عرض العملات ----
+    if (command === '!coins') {
+        const balance = coins[message.author.id] || 0;
+        message.reply(`رصيدك الحالي: ${balance} عملة 💰`);
+    }
+});
+
+client.login(TOKEN);
